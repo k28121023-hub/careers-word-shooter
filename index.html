@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>求職與職業單字大射擊</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            overscroll-behavior: none;
+            touch-action: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .game-canvas {
+            background: linear-gradient(to bottom, #1a202c, #2d3748);
+            box-shadow: inset 0 0 20px #000;
+        }
+        /* Custom Scrollbar for the word panel if needed */
+        .word-grid { touch-action: pan-y; }
+        .word-grid::-webkit-scrollbar {
+            width: 6px;
+        }
+        .word-grid::-webkit-scrollbar-thumb {
+            background-color: #4a5568;
+            border-radius: 4px;
+        }
+        .btn-press {
+            transition: transform 0.1s;
+        }
+        .btn-press:active {
+            transform: scale(0.95);
+        }
+
+        html { height:100%; background:#111827; }
+        body { margin:0; width:100%; height:100vh; height:100dvh; height:var(--visible-height,100dvh); display:grid !important;
+          grid-template-rows:auto minmax(0,1fr) minmax(210px,39%); grid-template-columns:minmax(0,1fr);
+          padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+          box-sizing:border-box; touch-action:manipulation; }
+        #gameHeader { height:auto; min-height:52px; gap:8px; padding:6px 12px; }
+        #gameHeader h1 {font-size:clamp(13px,2.4vw,20px);white-space:nowrap;}
+        #gameHeader .stats {gap:clamp(8px,2vw,20px);}
+        #gameHeader .stats .text-xl {font-size:clamp(15px,3vw,22px);}
+        #canvasContainer {min-width:0;min-height:0;position:relative;}
+        #gameCanvas {display:block;width:100%;height:100%;touch-action:none;}
+        #wordPanel {display:grid !important;grid-template-rows:auto auto minmax(0,1fr);height:auto;min-height:0;overflow:hidden;padding:8px;gap:5px;}
+        #wordScroller {min-height:0;min-width:0;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scroll-padding-bottom:72px;padding-bottom:max(72px,env(safe-area-inset-bottom));box-sizing:border-box;}
+        #wordButtons {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(52px,auto);
+          align-content:start;height:auto;min-height:0;overflow:visible;touch-action:pan-y;padding-bottom:8px;}
+        #wordButtons button {height:auto;min-height:52px;padding:6px 3px;touch-action:pan-y;font-size:13px;}
+        #wordButtons button {background:#374151;box-shadow:none;filter:none;}
+        #wordButtons button:hover,#wordButtons button:active {background:#374151;box-shadow:none;filter:none;}
+        #wordButtons button span:first-child {color:#e2e8f0;}
+        #wordButtons button span:last-child {font-size:11px;}
+        button {touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+        button:focus-visible,input:focus-visible {outline:3px solid #fbbf24;outline-offset:2px;}
+        #steering {width:100%;height:40px;accent-color:#60a5fa;touch-action:none;cursor:ew-resize;}
+        .steering-label {display:flex;align-items:center;gap:10px;font-size:12px;color:#cbd5e1;flex-shrink:0;}
+        .steering-label input {min-width:0;flex:1;}
+        #startScreen,#gameOverScreen,#winScreen {padding:16px;overflow:auto;text-align:center;}
+        #startScreen h2,#gameOverScreen h2,#winScreen h2 {font-size:clamp(22px,4vw,40px);margin:0 0 12px;}
+        #startScreen p,#gameOverScreen p,#winScreen p {font-size:clamp(13px,2.4vw,18px);margin:0 0 16px;}
+        #startScreen button,#gameOverScreen button,#winScreen button {min-height:48px;font-size:18px;}
+        @media(min-width:600px) and (orientation:portrait) {body{grid-template-rows:auto minmax(0,1fr) minmax(245px,34%);}#wordButtons{grid-template-columns:repeat(4,minmax(0,1fr));}#wordButtons button{font-size:16px;min-height:60px;}}
+        @media(orientation:landscape) and (min-width:600px) {body{grid-template-columns:minmax(0,1fr) clamp(260px,38vw,430px);grid-template-rows:auto minmax(0,1fr);}#gameHeader{grid-column:1/-1;}#wordPanel{border-top:0;border-left:1px solid #4b5563;}#wordButtons{grid-template-columns:repeat(2,minmax(0,1fr));}#wordPanel .panel-hint{font-size:11px;}}
+        @media(max-height:560px) and (orientation:landscape) {#gameHeader{min-height:40px;padding:2px 10px;}#wordPanel{padding:4px;}#wordButtons{gap:4px;grid-auto-rows:minmax(48px,auto);}#wordButtons button{min-height:48px;}#steering{height:32px;}}
+        @media(max-width:359px) {#gameHeader{padding:4px 6px;}#gameHeader h1{font-size:12px;}#wordButtons{grid-template-columns:repeat(2,minmax(0,1fr));}}
+        @media(min-width:1024px) {
+            html.keyboard-mode body {max-width:1600px;margin-inline:auto;grid-template-columns:minmax(0,1fr) clamp(320px,30vw,440px);grid-template-rows:auto minmax(0,1fr);}
+            html.keyboard-mode #gameHeader {grid-column:1/-1;}
+            html.keyboard-mode #wordButtons {grid-template-columns:repeat(3,minmax(0,1fr));}
+            html.keyboard-mode #wordButtons button {min-height:58px;font-size:14px;}
+        }
+        @media(hover:hover) and (pointer:fine) {
+            html.keyboard-mode .steering-label {display:none;}
+            html.keyboard-mode #wordPanel {grid-template-rows:auto minmax(0,1fr);}
+        }
+        html.keyboard-mode #selectedWordDisplay {display:block;min-height:20px;color:#cbd5e1;font-size:13px;}
+    </style>
+</head>
+<body class="bg-gray-900 h-screen w-screen flex flex-col overflow-hidden text-white select-none">
+
+    <!-- Game Header -->
+    <div id="gameHeader" class="flex justify-between items-center px-4 py-2 bg-gray-800 border-b border-gray-700 h-14 shrink-0">
+        <div>
+            <h1 class="text-lg font-bold text-yellow-400">💼 求職與職業大射擊</h1>
+        </div>
+        <div class="stats flex gap-4">
+            <div class="text-right">
+                <span class="text-xs text-gray-400">進度</span>
+                <div id="progressDisplay" class="text-xl font-mono font-bold text-blue-400">0/16</div>
+            </div>
+            <div class="text-right">
+                <span class="text-xs text-gray-400">分數</span>
+                <div id="scoreDisplay" class="text-xl font-mono font-bold text-green-400">0</div>
+            </div>
+            <div class="text-right">
+                <span class="text-xs text-gray-400">生命</span>
+                <div id="livesDisplay" class="text-xl font-mono font-bold text-red-400">❤❤❤❤</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canvas Area -->
+    <div class="flex-grow relative flex justify-center items-center bg-gray-900 w-full overflow-hidden" id="canvasContainer">
+        <canvas id="gameCanvas" class="game-canvas w-full h-full"></canvas>
+        
+        <!-- Start Screen Overlay -->
+        <div id="startScreen" class="absolute inset-0 bg-black/80 flex flex-col justify-center items-center z-10">
+            <h2 class="text-4xl font-bold mb-4 text-white">準備好了嗎？</h2>
+            <p class="text-gray-300 mb-8 text-center px-4">
+                在遊戲區拖曳，或滑動控制條移動戰車<br>
+                另一隻手點選單字，即可發射火炮彈<br>
+                <span class="text-yellow-400">答對全部 16 個不同單字即可過關！<br>每 15 秒掉落補血愛心，接到補 1 顆，最多 4 顆心。<br>每批最多 4 張圖片隨機掉落，清空後出下一批。</span>
+            </p>
+            <button id="startBtn" class="px-8 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg text-xl font-bold shadow-lg transform transition hover:scale-105">開始遊戲</button>
+        </div>
+
+        <!-- Game Over Overlay -->
+        <div id="gameOverScreen" class="hidden absolute inset-0 bg-red-900/95 flex flex-col justify-center items-center z-20">
+            <h2 class="text-5xl font-bold mb-2 text-white">遊戲結束</h2>
+            <p class="text-xl mb-6 text-gray-200">還差一點點！</p>
+            <p class="text-2xl mb-6">最終分數: <span id="finalScore" class="font-mono text-yellow-300">0</span></p>
+            <button id="restartBtn" class="px-8 py-3 bg-white text-red-900 rounded-lg text-xl font-bold shadow-lg transform transition hover:scale-105">再玩一次</button>
+        </div>
+
+        <!-- Win Screen Overlay -->
+        <div id="winScreen" class="hidden absolute inset-0 bg-yellow-600/95 flex flex-col justify-center items-center z-20">
+            <h2 class="text-5xl font-bold mb-2 text-white">🎉 闖關成功！</h2>
+            <p class="text-xl mb-6 text-white">太棒了！所有的求職與職業單字都學會了！</p>
+            <p class="text-2xl mb-6 text-white">最終分數: <span id="winScore" class="font-mono text-yellow-100 font-bold">0</span></p>
+            <button id="winRestartBtn" class="px-8 py-3 bg-white text-yellow-700 rounded-lg text-xl font-bold shadow-lg transform transition hover:scale-105">再挑戰一次</button>
+        </div>
+    </div>
+
+    <!-- Word Control Panel (The "Ammo") -->
+    <div id="wordPanel" class="h-[35%] min-h-[180px] bg-gray-800 border-t border-gray-600 p-2 shrink-0 flex flex-col">
+        <label class="steering-label" for="steering"><span>◀ 移動</span><input id="steering" type="range" min="0" max="1000" value="500" aria-label="左右移動戰車"><span>移動 ▶</span></label><div class="panel-hint text-center text-xs text-gray-400">點選單字發射火炮・答錯或撞圖扣血</div>
+        <div id="wordScroller" role="region" aria-label="單字列表，可上下滑動" tabindex="0">
+        <div class="word-grid gap-2" id="wordButtons">
+            <!-- Buttons generated by JS -->
+        </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 遊戲資料 (修正後的 16 個單字) ---
+        const transportMode = false;
+        const keyboardMode = true;
+        const VOCABULARY = [
+    {
+        "word": "résumé",
+        "label": "履歷",
+        "img": "images/resume.png",
+        "emoji": "📄"
+    },
+    {
+        "word": "salary",
+        "label": "薪資",
+        "img": "images/salary.png",
+        "emoji": "💵"
+    },
+    {
+        "word": "job advertisement",
+        "label": "徵才廣告",
+        "img": "images/job-advertisement.png",
+        "emoji": "📰"
+    },
+    {
+        "word": "nervous",
+        "label": "緊張的",
+        "img": "images/nervous.png",
+        "emoji": "😟"
+    },
+    {
+        "word": "certificate",
+        "label": "證書",
+        "img": "images/certificate.png",
+        "emoji": "📜"
+    },
+    {
+        "word": "interview",
+        "label": "面試",
+        "img": "images/interview.png",
+        "emoji": "💼"
+    },
+    {
+        "word": "dress smart",
+        "label": "穿著得體",
+        "img": "images/dress-smart.png",
+        "emoji": "👔"
+    },
+    {
+        "word": "be on time",
+        "label": "準時",
+        "img": "images/be-on-time.png",
+        "emoji": "🕒"
+    },
+    {
+        "word": "mechanic",
+        "label": "汽車技師",
+        "img": "images/mechanic.png",
+        "emoji": "🔧"
+    },
+    {
+        "word": "police officer",
+        "label": "警察",
+        "img": "images/police-officer.png",
+        "emoji": "👮"
+    },
+    {
+        "word": "businesspeople",
+        "label": "商務人士",
+        "img": "images/businesspeople.png",
+        "emoji": "💼"
+    },
+    {
+        "word": "chef",
+        "label": "廚師",
+        "img": "images/chef.png",
+        "emoji": "👨‍🍳"
+    },
+    {
+        "word": "doctor",
+        "label": "醫生",
+        "img": "images/doctor.png",
+        "emoji": "🩺"
+    },
+    {
+        "word": "waitress",
+        "label": "女服務生",
+        "img": "images/waitress.png",
+        "emoji": "🍽️"
+    },
+    {
+        "word": "technician",
+        "label": "技術人員",
+        "img": "images/technician.png",
+        "emoji": "🛠️"
+    },
+    {
+        "word": "reporter",
+        "label": "記者",
+        "img": "images/reporter.png",
+        "emoji": "🎤"
+    }
+];
+
+        // --- 系統變數 ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvasContainer');
+        const scoreEl = document.getElementById('scoreDisplay');
+        const livesEl = document.getElementById('livesDisplay');
+        const progressEl = document.getElementById('progressDisplay');
+        const finalScoreEl = document.getElementById('finalScore');
+        const winScoreEl = document.getElementById('winScore');
+        const wordGrid = document.getElementById('wordButtons');
+        
+        let gameWidth = 1, gameHeight = 1;
+        let animationId = 0;
+        let damageFlash = 0;
+        let muzzleFlash = 0;
+        let selectedWord = VOCABULARY[0].word;
+        const heldKeys = new Set();
+        let gameState = 'START'; // START, PLAYING, GAMEOVER, WIN
+        let score = 0;
+        let lives = 4;
+        let lastTime = 0;
+        let spawnTimer = 0;
+        let healthTimer = 0;
+        let healthPacks = [];
+        let spawnInterval = 2000;
+        let difficultyMultiplier = 1;
+        
+        // 追蹤已收集的單字
+        let clearedWords = new Set();
+
+        // --- 遊戲物件 ---
+        const tank = {
+            x: 0,
+            y: 0,
+            width: 56,
+            height: 40,
+            color: '#3b82f6',
+            targetX: 0
+        };
+
+        let enemies = [];
+        let bullets = [];
+        let particles = [];
+        
+        // --- 初始化圖片載入 ---
+        VOCABULARY.forEach(item => {
+            const img = new Image();
+            img.onload = () => { item.loadedImg = img; };
+            img.onerror = () => { item.loadedImg = null; };
+            img.src = item.img;
+        });
+
+        // --- 初始化 UI ---
+        function initUI() {
+            wordGrid.innerHTML = '';
+            // 根據單字數量調整網格佈局
+            wordGrid.className = `word-grid gap-2`;
+
+            VOCABULARY.forEach(item => {
+                const btn = document.createElement('button');
+                btn.id = `btn-${item.word.replace(/\s+/g, '-')}`; 
+                btn.className = 'min-h-[44px] btn-press bg-gray-700 text-white font-semibold py-2 px-1 rounded border border-gray-500 text-xs sm:text-sm flex flex-col items-center justify-center';
+                btn.innerHTML = `<span class="text-yellow-300 leading-tight text-center break-words w-full">${item.word}</span><span class="text-[10px] text-gray-400 mt-0.5">${item.label}</span>`;
+                
+                let lastWordPointer = 'mouse';
+                btn.addEventListener('pointerdown', e => { lastWordPointer = e.pointerType; });
+                btn.addEventListener('focus', () => { if (keyboardMode) selectWord(item.word); });
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (keyboardMode) selectWord(item.word);
+                    if (!keyboardMode || lastWordPointer === 'touch' || lastWordPointer === 'pen') fireBullet(item.word);
+
+                });
+
+
+                wordGrid.appendChild(btn);
+            });
+        }
+
+        function selectWord(word) {
+            selectedWord = word;
+            const status = document.getElementById('selectedWordDisplay');
+            if (status) status.textContent = `目前彈種：${word}`;
+            document.querySelectorAll('#wordButtons button').forEach(btn => {
+                btn.setAttribute('aria-pressed', String(btn.id === `btn-${word.replace(/\s+/g, '-')}`));
+            });
+        }
+
+        function resize() {
+            const oldWidth = gameWidth, oldHeight = gameHeight;
+            gameWidth = Math.max(1, container.clientWidth);
+            gameHeight = Math.max(1, container.clientHeight);
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            canvas.width = Math.round(gameWidth * dpr);
+            canvas.height = Math.round(gameHeight * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            tank.x = oldWidth > 1 ? tank.x / oldWidth * gameWidth : gameWidth / 2;
+            tank.targetX = oldWidth > 1 ? tank.targetX / oldWidth * gameWidth : gameWidth / 2;
+            tank.y = gameHeight - 26;
+            enemies.forEach(e => { e.x *= gameWidth / oldWidth; e.y *= gameHeight / oldHeight; });
+            bullets.forEach(b => { b.x *= gameWidth / oldWidth; b.y *= gameHeight / oldHeight; });
+            healthPacks.forEach(pack => { pack.x *= gameWidth / oldWidth; pack.y *= gameHeight / oldHeight; });
+            draw();
+        }
+        new ResizeObserver(resize).observe(container);
+        window.addEventListener('resize', resize);
+
+        // --- 遊戲核心邏輯 ---
+
+        function startGame() {
+            cancelAnimationFrame(animationId);
+            gameState = 'PLAYING';
+            spawnTimer = 0;
+            healthTimer = 0;
+            healthPacks = [];
+            heldKeys.clear();
+            damageFlash = 0;
+            muzzleFlash = 0;
+            score = 0;
+            lives = 4;
+            difficultyMultiplier = 1;
+            spawnInterval = 2500;
+            enemies = [];
+            bullets = [];
+            particles = [];
+            clearedWords.clear(); // 重置已收集單字
+            spawnWave();
+            
+            updateScoreUI();
+            updateProgressUI();
+            
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('winScreen').classList.add('hidden');
+            
+            lastTime = performance.now();
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        function gameOver() {
+            gameState = 'GAMEOVER';
+            finalScoreEl.innerText = score;
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+        }
+
+        function gameWin() {
+            gameState = 'WIN';
+            winScoreEl.innerText = score;
+            document.getElementById('winScreen').classList.remove('hidden');
+            // 放個慶祝煙火
+            for(let i=0; i<10; i++) {
+                setTimeout(() => {
+                    createExplosion(gameWidth/2 + (Math.random()-0.5)*300, gameHeight/2 + (Math.random()-0.5)*300, ['#FFD700', '#FFF', '#FFA500'][Math.floor(Math.random()*3)]);
+                }, i * 200);
+            }
+        }
+
+        function takeDamage() {
+            if (gameState !== 'PLAYING') return;
+            lives = Math.max(0, lives - 1);
+            damageFlash = 240;
+            createExplosion(tank.x, tank.y, '#fb7185');
+            updateScoreUI();
+            if (lives === 0) gameOver();
+        }
+
+        function fireBullet(word) {
+            if (gameState !== 'PLAYING') return;
+            muzzleFlash = 90;
+            bullets.push({
+                x: tank.x,
+                y: tank.y - 35,
+                word: word,
+                width: 12,
+                height: 24,
+                speed: 10,
+                active: true
+            });
+        }
+
+        function spawnEnemy(selectedItem = null, spawnX = null, depth = 0) {
+            // 策略：優先生成還沒收集到的單字
+            const uncollected = VOCABULARY.filter(v => !clearedWords.has(v.word));
+            
+            // 如果還有未收集的，優先從這裡面挑；否則隨機挑（雖然理論上收集完就贏了，但防呆）
+            const pool = uncollected.length > 0 ? uncollected : VOCABULARY;
+            
+            const item = selectedItem || pool[Math.floor(Math.random() * pool.length)];
+            const size = Math.max(48, Math.min(62, gameWidth / 7));
+            const x = spawnX === null ? Math.random() * (gameWidth - size - 20) + size/2 + 10 : spawnX; 
+            
+            enemies.push({
+                x: x,
+                y: -80 - depth,
+                size: size,
+                word: item.word,
+                emoji: item.emoji,
+                img: item.loadedImg,
+                speed: Math.max(0.22, (gameHeight - 26) / 800) * difficultyMultiplier, 
+                rotation: 0 
+            });
+        }
+
+        function spawnWave() {
+            if (enemies.length !== 0 || gameState !== 'PLAYING') return;
+            const pool = VOCABULARY.filter(v => !clearedWords.has(v.word));
+            const count = Math.min(4, pool.length);
+            for (let i = 0; i < count; i++) {
+                const item = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+                const size = Math.max(48, Math.min(62, gameWidth / 7));
+                let x, depth;
+                let attempts = 0;
+                do {
+                    x = size/2 + 10 + Math.random() * Math.max(0, gameWidth - size - 20);
+                    depth = Math.random() * 300 + i * 20;
+                    attempts++;
+                } while (attempts < 40 && enemies.some(e => Math.abs(e.x - x) < size + 10 && Math.abs(e.y - (-80 - depth)) < size + 16));
+                if (enemies.some(e => Math.abs(e.x - x) < size + 10 && Math.abs(e.y - (-80 - depth)) < size + 16)) {
+                    depth = Math.max(0, ...enemies.map(e => -e.y - 80)) + size + 20;
+                }
+                spawnEnemy(item, x, depth);
+            }
+        }
+
+        function updateHealth(dt, step) {
+            healthTimer += dt;
+            if (healthTimer >= 15000) {
+                healthTimer %= 15000;
+                healthPacks.push({x: 24 + Math.random() * Math.max(0, gameWidth - 48), y: -20});
+            }
+            healthPacks.forEach(pack => {
+                pack.y += Math.max(0.65, (gameHeight - 26) / 650) * step;
+                if (Math.abs(pack.x - tank.x) < tank.width/2 + 16 && Math.abs(pack.y - tank.y) < tank.height/2 + 16) {
+                    lives = Math.min(4, lives + 1);
+                    updateScoreUI();
+                    createExplosion(pack.x, pack.y, '#4ade80');
+                    pack.collected = true;
+                }
+            });
+            healthPacks = healthPacks.filter(pack => !pack.collected && pack.y < gameHeight + 30);
+        }
+
+        function createExplosion(x, y, color) {
+            for (let i = 0; i < 15; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 15,
+                    vy: (Math.random() - 0.5) * 15,
+                    life: 1.0,
+                    color: color,
+                    size: Math.random() * 5 + 2
+                });
+            }
+        }
+
+        function update(dt) {
+            const step = Math.min(dt, 50) / (1000 / 60);
+            damageFlash = Math.max(0, damageFlash - dt);
+            muzzleFlash = Math.max(0, muzzleFlash - dt);
+            if (gameState !== 'PLAYING') {
+                // 就算結束了也要更新粒子效果，比較好看
+                particles.forEach(p => {
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.05;
+                });
+                particles = particles.filter(p => p.life > 0);
+                return;
+            }
+
+            // 1. 難度調整
+            difficultyMultiplier = 1 + (score / 1000); 
+            if (spawnInterval > 1000) spawnInterval = 2500 - (score * 5);
+
+            if (keyboardMode) {
+                const left = heldKeys.has('ArrowLeft') || heldKeys.has('KeyA');
+                const right = heldKeys.has('ArrowRight') || heldKeys.has('KeyD');
+                const direction = Number(right) - Number(left);
+                if (direction) tank.targetX = Math.max(tank.width/2, Math.min(gameWidth - tank.width/2, tank.targetX + direction * 330 * dt / 1000));
+            }
+            // 2. 戰車移動
+            tank.x += (tank.targetX - tank.x) * (1 - Math.pow(0.8, step));
+            if (tank.x < tank.width/2) tank.x = tank.width/2;
+            if (tank.x > gameWidth - tank.width/2) tank.x = gameWidth - tank.width/2;
+
+            // 每批最多四張隨機圖片，清空後才出下一批。
+            updateHealth(dt, step);
+            if (enemies.length === 0) {
+                spawnTimer += dt;
+                if (spawnTimer >= 1000) { spawnWave(); spawnTimer = 0; }
+            } else { spawnTimer = 0; }
+
+            // 4. 更新子彈
+            bullets.forEach(b => {
+                b.y -= b.speed * step;
+                if (b.y < -50) b.active = false;
+            });
+
+            // 5. 更新敵人 & 碰撞檢測
+            enemies.forEach(e => {
+                if (e.active === false || gameState !== 'PLAYING') return;
+                e.y += e.speed * step;
+
+                // 檢測是否撞到戰車
+                if (Math.abs(e.x - tank.x) < e.size/2 + tank.width/2 - 5 &&
+                    Math.abs(e.y - tank.y) < e.size/2 + tank.height/2) {
+                    e.active = false;
+                    takeDamage();
+                    return;
+                }
+
+                // 檢測子彈命中
+                bullets.forEach(b => {
+                    if (!b.active || e.active === false || gameState !== 'PLAYING') return;
+                    
+                    if (Math.abs(b.x - e.x) < (e.size + b.width)/2 && Math.abs(b.y - e.y) < (e.size + b.height)/2) {
+                        if (b.word === e.word) {
+                            // 命中正確！
+                            score += 10;
+                            
+                            // 記錄收集到的單字
+                            if (!clearedWords.has(e.word)) {
+                                clearedWords.add(e.word);
+
+                            }
+
+                            updateScoreUI();
+                            updateProgressUI();
+                            createExplosion(e.x, e.y, '#fbbf24');
+                            
+                            e.active = false;
+                            b.active = false;
+
+                            // 檢查是否獲勝 (收集滿 16 個)
+                            if (clearedWords.size >= VOCABULARY.length) {
+                                gameWin();
+                            }
+
+                        } else {
+                            // 命中錯誤：消耗炮彈並扣一顆心，圖片保留。
+                            b.active = false;
+                            createExplosion(e.x, e.y, '#fb7185');
+                            takeDamage();
+                        }
+                    }
+                });
+
+                if (e.y > gameHeight + 50) {
+                    e.active = false;
+                }
+            });
+
+            bullets = bullets.filter(b => b.active);
+            enemies = enemies.filter(e => e.active !== false);
+
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.05;
+            });
+            particles = particles.filter(p => p.life > 0);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, gameWidth, gameHeight);
+
+            // 網格背景
+            ctx.strokeStyle = '#2d3748';
+            ctx.lineWidth = 1;
+            for(let i=0; i<gameWidth; i+=50) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, gameHeight); ctx.stroke();
+            }
+
+            // 低輪廓的未來風格戰車：金屬車身、履帶與霓虹燈帶。
+            ctx.save();
+            ctx.translate(tank.x, tank.y);
+            ctx.shadowColor = damageFlash > 0 ? '#fb7185' : '#22d3ee';
+            ctx.shadowBlur = 12;
+            const hull = ctx.createLinearGradient(-25, -15, 25, 20);
+            hull.addColorStop(0, '#cbd5e1');
+            hull.addColorStop(0.38, '#334155');
+            hull.addColorStop(1, '#0f172a');
+            [-1, 1].forEach(side => {
+                ctx.fillStyle = '#020617';
+                ctx.fillRect(side * 22 - 6, -10, 12, 32);
+                ctx.fillStyle = '#475569';
+                for (let y = -7; y < 20; y += 6) ctx.fillRect(side * 22 - 4, y, 8, 3);
+            });
+            ctx.fillStyle = hull;
+            ctx.strokeStyle = '#67e8f9';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(0, -21); ctx.lineTo(20, -9); ctx.lineTo(25, 15);
+            ctx.lineTo(14, 22); ctx.lineTo(-14, 22); ctx.lineTo(-25, 15); ctx.lineTo(-20, -9);
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#111827';
+            ctx.fillRect(-5, -34, 10, 25);
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillRect(-3, -32, 6, 20);
+            ctx.fillStyle = '#22d3ee';
+            ctx.fillRect(-6, -35, 12, 4);
+            ctx.beginPath();
+            ctx.moveTo(0, -12); ctx.lineTo(10, -3); ctx.lineTo(7, 11);
+            ctx.lineTo(-7, 11); ctx.lineTo(-10, -3); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#e0f2fe';
+            ctx.fillRect(-20, 11, 7, 3); ctx.fillRect(13, 11, 7, 3);
+            ctx.fillStyle = '#a78bfa';
+            ctx.fillRect(-13, 20, 8, 3); ctx.fillRect(5, 20, 8, 3);
+            if (muzzleFlash > 0) {
+                ctx.fillStyle = '#fef08a';
+                ctx.beginPath();
+                ctx.moveTo(0, -57); ctx.lineTo(9, -37); ctx.lineTo(-9, -37); ctx.closePath(); ctx.fill();
+            }
+            ctx.restore();
+
+            // 火炮彈，保留小型單字標籤以確認發射內容。
+            bullets.forEach(b => {
+                ctx.save(); ctx.translate(b.x, b.y);
+                ctx.shadowColor = '#f59e0b'; ctx.shadowBlur = 10;
+                ctx.fillStyle = '#fb923c';
+                ctx.beginPath(); ctx.moveTo(-4, 10); ctx.lineTo(0, 27); ctx.lineTo(4, 10); ctx.closePath(); ctx.fill();
+                const shell = ctx.createLinearGradient(-6, 0, 6, 0);
+                shell.addColorStop(0, '#b45309'); shell.addColorStop(0.5, '#fef3c7'); shell.addColorStop(1, '#f59e0b');
+                ctx.fillStyle = shell;
+                ctx.beginPath(); ctx.moveTo(0, -13); ctx.quadraticCurveTo(6, -7, 6, -2);
+                ctx.lineTo(6, 10); ctx.lineTo(-6, 10); ctx.lineTo(-6, -2); ctx.quadraticCurveTo(-6, -7, 0, -13); ctx.fill();
+                ctx.shadowBlur = 0; ctx.fillStyle = '#78350f'; ctx.fillRect(-6, 5, 12, 3);
+                ctx.restore();
+                ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#fde68a';
+                const half = Math.min(ctx.measureText(b.word).width / 2, (gameWidth - 12)/2);
+                const labelX = Math.max(half + 6, Math.min(gameWidth - half - 6, b.x));
+                ctx.fillText(b.word, labelX, b.y + 35, gameWidth - 12);
+            });
+
+            // 敵人
+            enemies.forEach(e => {
+                ctx.save();
+                ctx.translate(e.x, e.y);
+                
+                // 如果是已收集的單字，給它一個特殊的金色邊框提示
+                if (clearedWords.has(e.word)) {
+                    ctx.strokeStyle = '#fbbf24'; // Gold
+                    ctx.shadowColor = '#fbbf24';
+                    ctx.shadowBlur = 15;
+                } else {
+                    ctx.strokeStyle = '#fff';
+                    ctx.shadowBlur = 0;
+                }
+                
+                ctx.lineWidth = 3; 
+                ctx.strokeRect(-e.size/2, -e.size/2, e.size, e.size);
+                
+                if (e.img) {
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(-e.size/2, -e.size/2, e.size, e.size);
+                    const scale = e.size / Math.max(e.img.naturalWidth, e.img.naturalHeight);
+                    const width = e.img.naturalWidth * scale;
+                    const height = e.img.naturalHeight * scale;
+                    ctx.drawImage(e.img, -width/2, -height/2, width, height);
+                } else {
+                    ctx.fillStyle = '#000000aa';
+                    ctx.fillRect(-e.size/2, -e.size/2, e.size, e.size);
+                    ctx.font = '45px Arial';
+                    ctx.fillStyle = '#fff';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(e.emoji, 0, 0);
+                }
+                ctx.restore();
+            });
+
+            healthPacks.forEach(pack => {
+                // Glossy heart pickup with a fine rim, reflection and small sparkle.
+                ctx.save(); ctx.translate(pack.x, pack.y);
+                ctx.rotate(Math.sin(pack.y / 60) * 0.07);
+                ctx.shadowColor = '#fb7185'; ctx.shadowBlur = 15;
+                const heartGloss = ctx.createLinearGradient(-15, -21, 14, 18);
+                heartGloss.addColorStop(0, '#fff1f2');
+                heartGloss.addColorStop(0.22, '#fb7185');
+                heartGloss.addColorStop(0.55, '#e11d48');
+                heartGloss.addColorStop(1, '#881337');
+                ctx.fillStyle = heartGloss; ctx.strokeStyle = '#fecdd3'; ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.moveTo(0, 16);
+                ctx.bezierCurveTo(-5, 11, -21, 2, -21, -8);
+                ctx.bezierCurveTo(-21, -23, -5, -24, 0, -12);
+                ctx.bezierCurveTo(5, -24, 21, -23, 21, -8);
+                ctx.bezierCurveTo(21, 2, 5, 11, 0, 16);
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.beginPath(); ctx.ellipse(-10, -13, 5, 2.3, -0.6, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = 'rgba(255,224,230,0.65)'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(12,-9); ctx.quadraticCurveTo(17,-3,4,9); ctx.stroke();
+                ctx.fillStyle = '#fff1f2';
+                ctx.beginPath(); ctx.moveTo(23,-25);ctx.lineTo(25,-20);ctx.lineTo(30,-18);
+                ctx.lineTo(25,-16);ctx.lineTo(23,-11);ctx.lineTo(21,-16);ctx.lineTo(16,-18);ctx.lineTo(21,-20);ctx.closePath();ctx.fill();
+                ctx.restore();
+            });
+
+            if (damageFlash > 0) {
+                ctx.fillStyle = `rgba(239,68,68,${damageFlash / 240 * 0.24})`;
+                ctx.fillRect(0, 0, gameWidth, gameHeight);
+            }
+
+            // 粒子
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size || 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            });
+        }
+
+        function gameLoop(timestamp) {
+            const dt = Math.min(timestamp - lastTime, 50);
+            lastTime = timestamp;
+            update(dt);
+            draw();
+            if (gameState === 'PLAYING' || particles.length > 0) {
+                animationId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function updateScoreUI() {
+            scoreEl.innerText = score;
+            let livesStr = '';
+            for(let i=0; i<lives; i++) livesStr += '❤';
+            livesEl.innerText = livesStr;
+        }
+
+        function updateProgressUI() {
+            progressEl.innerText = `${clearedWords.size}/${VOCABULARY.length}`;
+        }
+
+        // --- 輸入控制 ---
+        function handleInput(clientX) {
+            const rect = canvas.getBoundingClientRect();
+            let x = clientX - rect.left;
+            tank.targetX = x;
+        }
+
+        let steeringPointer = null;
+        canvas.addEventListener('pointerdown', e => {
+            if (keyboardMode && e.pointerType === 'mouse') return;
+            if (steeringPointer !== null) return;
+            steeringPointer = e.pointerId;
+            canvas.setPointerCapture(e.pointerId);
+            handleInput(e.clientX);
+        });
+        canvas.addEventListener('pointermove', e => {
+            if (keyboardMode && e.pointerType === 'mouse') return;
+            if (e.pointerId === steeringPointer || (e.pointerType === 'mouse' && steeringPointer === null)) handleInput(e.clientX);
+        });
+        ['pointerup','pointercancel','lostpointercapture'].forEach(type => canvas.addEventListener(type, e => {
+            if (e.pointerId === steeringPointer) steeringPointer = null;
+        }));
+        document.getElementById('steering').addEventListener('pointerdown', e => {
+            if (keyboardMode && e.pointerType === 'mouse') e.preventDefault();
+        });
+        document.getElementById('steering').addEventListener('input', e => {
+            tank.targetX = tank.width/2 + Number(e.target.value) / 1000 * (gameWidth - tank.width);
+        });
+
+        window.addEventListener('keydown', e => {
+            if (!keyboardMode || e.altKey || e.ctrlKey || e.metaKey) return;
+            if (e.target?.matches?.('input:not([type="range"]), textarea, select, [contenteditable="true"]')) return;
+            if (['ArrowLeft','ArrowRight','KeyA','KeyD'].includes(e.code)) {
+                e.preventDefault();
+                if (gameState === 'PLAYING') heldKeys.add(e.code);
+            } else if (e.code === 'Space') {
+                e.preventDefault();
+                if (!e.repeat && gameState === 'PLAYING') fireBullet(selectedWord);
+            } else if (['ArrowUp','ArrowDown'].includes(e.code)) {
+                e.preventDefault();
+                const index = VOCABULARY.findIndex(item => item.word === selectedWord);
+                const next = (index + (e.code === 'ArrowDown' ? 1 : -1) + VOCABULARY.length) % VOCABULARY.length;
+                selectWord(VOCABULARY[next].word);
+                document.getElementById(`btn-${selectedWord.replace(/\s+/g, '-')}`)?.scrollIntoView?.({block:'nearest'});
+            }
+        });
+        window.addEventListener('keyup', e => { heldKeys.delete(e.code); });
+        window.addEventListener('blur', () => { heldKeys.clear(); });
+        document.addEventListener('visibilitychange', () => { if (document.hidden) heldKeys.clear(); });
+
+        document.getElementById('startBtn').addEventListener('click', startGame);
+        document.getElementById('restartBtn').addEventListener('click', startGame);
+        document.getElementById('winRestartBtn').addEventListener('click', startGame);
+
+        // Match the usable mobile viewport while browser toolbars open or close.
+        function syncVisibleHeight() {
+            const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            document.documentElement.style.setProperty('--visible-height', `${Math.floor(height)}px`);
+        }
+        syncVisibleHeight();
+        window.visualViewport?.addEventListener('resize', syncVisibleHeight);
+        window.addEventListener('resize', syncVisibleHeight);
+
+
+        if (keyboardMode) {
+            document.documentElement.classList.add('keyboard-mode');
+            document.querySelector('#startScreen p').innerHTML = '電腦：← → 或 A / D 移動，Space 發射<br>點選單字或用 ↑ ↓ 選擇彈種（也可 Tab 切換）<br>平板：觸控拖曳移動，點單字直接發射<br><span class="text-yellow-400">答對全部 16 個不同單字過關；每 15 秒出現補血愛心，最多 4 顆心。每批最多 4 張隨機圖片。</span>';
+            document.querySelector('.panel-hint').innerHTML = '電腦：← → / A D 移動・Space 發射・↑ ↓ 選字<br>平板：拖曳移動・點單字發射<br><span id="selectedWordDisplay" aria-live="polite"></span>';
+        }
+
+        // --- 啟動 ---
+        initUI();
+        if (keyboardMode) selectWord(selectedWord);
+        updateProgressUI();
+        resize();
+        
+        ctx.fillStyle = '#1a202c';
+        ctx.fillRect(0, 0, gameWidth, gameHeight);
+
+    </script>
+</body>
+</html>
